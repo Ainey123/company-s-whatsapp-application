@@ -24,12 +24,17 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  memberships     ConversationMember[]
-  messages        Message[]
-  receipts        MessageReceipt[]
-  callsInitiated  CallLog[]            @relation("CallerCalls")
-  callsReceived   CallLog[]            @relation("ReceiverCalls")
-  auditLogs       AuditLog[]
+  memberships       ConversationMember[]
+  messages          Message[]
+  receipts          MessageReceipt[]
+  callsInitiated    CallLog[]            @relation("CallerCalls")
+  callsReceived     CallLog[]            @relation("ReceiverCalls")
+  auditLogs         AuditLog[]
+  storageAuditLogs  StorageAuditLog[]
+
+  @@index([department])
+  @@index([status])
+  @@index([isOnline])
 }
 
 model Department {
@@ -46,12 +51,17 @@ model Conversation {
   description   String?
   avatar        String?
   createdById   String?
+  isImportant   Boolean  @default(false) // Safety: Important conversations are never automatically deleted
+  retentionDays Int?     // Group files configurable retention (e.g. 30, 90, 180, 365, null = never)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   lastMessageAt DateTime @default(now())
 
   members  ConversationMember[]
   messages Message[]
+
+  @@index([lastMessageAt])
+  @@index([isGroup])
 }
 
 model ConversationMember {
@@ -63,12 +73,15 @@ model ConversationMember {
   isMuted        Boolean  @default(false)
   isArchived     Boolean  @default(false)
   isPinned       Boolean  @default(false)
+  isImportant    Boolean  @default(false)
   unreadCount    Int      @default(0)
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([conversationId, userId])
+  @@index([userId])
+  @@index([conversationId])
 }
 
 model Message {
@@ -77,9 +90,14 @@ model Message {
   senderId       String
   content        String
   type           String   @default("TEXT") // TEXT, IMAGE, VIDEO, AUDIO, DOCUMENT, VOICE
-  fileUrl        String?
-  fileName       String?
-  fileSize       Int?
+  fileUrl        String?  // Public / secure download URL
+  fileKey        String?  // Cloudflare R2 object storage key or local file key
+  fileName       String?  // Original file name
+  fileSize       Int?     // Size in bytes
+  mimeType       String?  // MIME type (image/webp, video/mp4, etc.)
+  thumbnailUrl   String?  // Compressed lightweight preview thumbnail
+  isTemporary    Boolean  @default(false) // 7-day auto-expiry temporary file
+  isImportant    Boolean  @default(false) // Safety: Important/starred messages never purged
   replyToId      String?
   isEdited       Boolean  @default(false)
   isDeleted      Boolean  @default(false)
@@ -91,6 +109,13 @@ model Message {
   replyTo      Message?         @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies      Message[]        @relation("MessageReplies")
   receipts     MessageReceipt[]
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@index([type])
+  @@index([fileSize])
+  @@index([createdAt])
+  @@index([isTemporary])
 }
 
 model MessageReceipt {
@@ -118,6 +143,40 @@ model CallLog {
 
   caller   User @relation("CallerCalls", fields: [callerId], references: [id], onDelete: Cascade)
   receiver User @relation("ReceiverCalls", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([callerId])
+  @@index([receiverId])
+  @@index([startedAt])
+}
+
+model RetentionPolicy {
+  id                     String    @id @default(cuid())
+  temporaryFileDays      Int       @default(7)    // Temporary files: 7 days default
+  voiceRetentionDays     Int       @default(90)   // Voice notes: 90 days default
+  callLogRetentionDays   Int       @default(180)  // Call logs: 180 days default
+  groupFileRetentionDays Int       @default(365)  // Group media: 365 days (configurable)
+  autoPurgeEnabled       Boolean   @default(false)// Automatic background execution
+  warningThreshold       Int       @default(70)   // 70% capacity notification
+  criticalThreshold      Int       @default(85)   // 85% capacity notification
+  emergencyThreshold     Int       @default(95)   // 95% capacity notification
+  storageQuotaBytes      Float     @default(10737418240) // 10 GB storage quota default
+  lastRunAt              DateTime?
+  updatedAt              DateTime  @updatedAt
+}
+
+model StorageAuditLog {
+  id            String   @id @default(cuid())
+  action        String   // RETENTION_PURGE, MANUAL_FILE_DELETE, STORAGE_ALERT
+  policyName    String?
+  itemsPurged   Int      @default(0)
+  bytesFreed    Float    @default(0)
+  executedById  String?
+  details       String?
+  createdAt     DateTime @default(now())
+
+  executedBy User? @relation(fields: [executedById], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
 }
 
 model AuditLog {
@@ -129,4 +188,6 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
 }

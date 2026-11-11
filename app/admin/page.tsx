@@ -26,12 +26,13 @@ import { formatFileSize, formatLastSeen } from "@/lib/utils";
 import { useAuth } from "@/components/providers/AuthProvider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { StorageDashboard } from "@/components/admin/StorageDashboard";
 
 export default function AdminDashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<"OVERVIEW" | "EMPLOYEES" | "GROUPS" | "DEPARTMENTS" | "AUDIT">("OVERVIEW");
+  const [activeTab, setActiveTab] = useState<"OVERVIEW" | "EMPLOYEES" | "GROUPS" | "DEPARTMENTS" | "AUDIT" | "STORAGE">("OVERVIEW");
   const [stats, setStats] = useState<any>(null);
   const [employees, setEmployees] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
@@ -245,6 +246,7 @@ export default function AdminDashboardPage() {
         <div className="flex gap-2 border-b border-neutral-200 dark:border-chat-darkBorder pb-3 mb-6 overflow-x-auto">
           {[
             { id: "OVERVIEW", label: "Overview & Metrics", icon: Activity },
+            { id: "STORAGE", label: "Storage & Retention", icon: HardDrive },
             { id: "EMPLOYEES", label: "Employee Directory", icon: Users },
             { id: "GROUPS", label: "Company Groups", icon: Layers },
             { id: "DEPARTMENTS", label: "Departments", icon: Building },
@@ -640,6 +642,9 @@ export default function AdminDashboardPage() {
             </div>
           </div>
         )}
+
+        {/* TAB: STORAGE MANAGEMENT & DATA RETENTION */}
+        {activeTab === "STORAGE" && <StorageDashboard />}
       </div>
 
       {/* MODAL: ADD EMPLOYEE */}

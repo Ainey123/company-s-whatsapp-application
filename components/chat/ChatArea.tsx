@@ -40,29 +40,37 @@ export function ChatArea({ conversation, onToggleInfo, onForwardMessage }: ChatA
   const [messages, setMessages] = useState<MessageData[]>([]);
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [replyingTo, setReplyingTo] = useState<MessageData | null>(null);
   const [editingMessage, setEditingMessage] = useState<MessageData | null>(null);
+  const [markAsTemporary, setMarkAsTemporary] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fileTypeRef = useRef<"IMAGE" | "VIDEO" | "DOCUMENT">("DOCUMENT");
   const typingTimeoutRef = useRef<any>(null);
 
-  // Load messages for current conversation
+  // Load initial paginated messages (take: 30)
   useEffect(() => {
     if (!conversation?.id) return;
 
     let isMounted = true;
     setLoading(true);
+    setHasMore(false);
+    setNextCursor(null);
 
-    fetch(`/api/conversations/${conversation.id}/messages`)
+    fetch(`/api/conversations/${conversation.id}/messages?limit=30`)
       .then((res) => res.json())
       .then((data) => {
         if (isMounted && data.messages) {
           setMessages(data.messages);
+          setHasMore(Boolean(data.hasMore));
+          setNextCursor(data.nextCursor || null);
         }
       })
       .catch((err) => console.error("Error loading messages:", err))
@@ -82,6 +90,49 @@ export function ChatArea({ conversation, onToggleInfo, onForwardMessage }: ChatA
       }
     };
   }, [conversation?.id, socket]);
+
+  // Load earlier messages on demand (Lazy Loading Pagination)
+  const handleLoadEarlier = async () => {
+    if (!hasMore || !nextCursor || loadingMore || !conversation?.id) return;
+
+    setLoadingMore(true);
+    try {
+      const res = await fetch(
+        `/api/conversations/${conversation.id}/messages?cursor=${nextCursor}&limit=30`
+      );
+      const data = await res.json();
+      if (data.messages && data.messages.length > 0) {
+        setMessages((prev) => [...data.messages, ...prev]);
+        setHasMore(Boolean(data.hasMore));
+        setNextCursor(data.nextCursor || null);
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.error("Failed to load earlier messages:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Toggle Important / Star message
+  const handleToggleImportant = async (msg: MessageData) => {
+    const nextState = !msg.isImportant;
+    // Optimistic UI update
+    setMessages((prev) =>
+      prev.map((m) => (m.id === msg.id ? { ...m, isImportant: nextState } : m))
+    );
+
+    try {
+      await fetch(`/api/messages/${msg.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isImportant: nextState }),
+      });
+    } catch (err) {
+      console.error("Failed to update message star status:", err);
+    }
+  };
 
   // Real-time socket message listeners
   useEffect(() => {
@@ -235,6 +286,9 @@ export function ChatArea({ conversation, onToggleInfo, onForwardMessage }: ChatA
     const formData = new FormData();
     formData.append("file", file);
     formData.append("type", fileTypeRef.current);
+    if (markAsTemporary) {
+      formData.append("isTemporary", "true");
+    }
 
     try {
       const uploadRes = await fetch("/api/upload", {
@@ -248,13 +302,18 @@ export function ChatArea({ conversation, onToggleInfo, onForwardMessage }: ChatA
       const msgPayload = {
         type: uploadData.type,
         fileUrl: uploadData.fileUrl,
+        fileKey: uploadData.fileKey,
+        mimeType: uploadData.mimeType,
+        thumbnailUrl: uploadData.thumbnailUrl,
         fileName: uploadData.fileName,
         fileSize: uploadData.fileSize,
+        isTemporary: markAsTemporary,
         content: "",
         replyToId: replyingTo?.id || null,
       };
 
       setReplyingTo(null);
+      setMarkAsTemporary(false);
       soundManager.playMessageSent();
 
       const res = await fetch(`/api/conversations/${conversation.id}/messages`, {
@@ -296,6 +355,9 @@ export function ChatArea({ conversation, onToggleInfo, onForwardMessage }: ChatA
       const msgPayload = {
         type: "VOICE",
         fileUrl: uploadData.fileUrl,
+        fileKey: uploadData.fileKey,
+        mimeType: uploadData.mimeType,
+        thumbnailUrl: uploadData.thumbnailUrl,
         fileName: "Voice Note",
         fileSize: uploadData.fileSize,
         content: "",
@@ -422,6 +484,30 @@ export function ChatArea({ conversation, onToggleInfo, onForwardMessage }: ChatA
           </div>
         ) : (
           <>
+            {/* Load Earlier Messages Button (Pagination / Lazy Loading) */}
+            {hasMore && (
+              <div className="flex justify-center py-2">
+                <button
+                  type="button"
+                  onClick={handleLoadEarlier}
+                  disabled={loadingMore}
+                  className="px-3 py-1 bg-white dark:bg-chat-darkIn border border-neutral-200 dark:border-chat-darkBorder rounded-full text-xs font-medium text-brand-700 dark:text-emerald-400 shadow-xs hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all flex items-center gap-1.5"
+                >
+                  {loadingMore ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+                      Loading older messages...
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-3.5 h-3.5 rotate-180" />
+                      Load earlier messages
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
             {messages.map((msg) => (
               <MessageBubble
                 key={msg.id}
@@ -437,6 +523,7 @@ export function ChatArea({ conversation, onToggleInfo, onForwardMessage }: ChatA
                 onDelete={async (id) => {
                   await fetch(`/api/messages/${id}`, { method: "DELETE" });
                 }}
+                onToggleImportant={handleToggleImportant}
               />
             ))}
 
@@ -536,7 +623,7 @@ export function ChatArea({ conversation, onToggleInfo, onForwardMessage }: ChatA
 
               {/* Attachment Popover */}
               {showAttachMenu && (
-                <div className="absolute bottom-14 left-0 z-50 w-44 rounded-2xl bg-white dark:bg-chat-darkIn border border-neutral-200 dark:border-chat-darkBorder shadow-2xl p-1.5 text-xs font-medium animate-in fade-in zoom-in-95 duration-100">
+                <div className="absolute bottom-14 left-0 z-50 w-52 rounded-2xl bg-white dark:bg-chat-darkIn border border-neutral-200 dark:border-chat-darkBorder shadow-2xl p-1.5 text-xs font-medium animate-in fade-in zoom-in-95 duration-100">
                   <button
                     type="button"
                     onClick={() => triggerFileInput("IMAGE")}
@@ -558,6 +645,16 @@ export function ChatArea({ conversation, onToggleInfo, onForwardMessage }: ChatA
                   >
                     <FileText className="w-4 h-4 text-blue-500" /> Documents & PDFs
                   </button>
+                  <div className="border-t border-neutral-100 dark:border-chat-darkBorder my-1" />
+                  <label className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-neutral-600 dark:text-neutral-300 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={markAsTemporary}
+                      onChange={(e) => setMarkAsTemporary(e.target.checked)}
+                      className="rounded text-brand-600 focus:ring-brand-500"
+                    />
+                    <span>Temporary (7-day auto-purge)</span>
+                  </label>
                 </div>
               )}
             </div>

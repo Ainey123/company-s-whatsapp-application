@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import fs from "fs";
-import path from "path";
-
-// Allow up to 50MB files
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+import { uploadFile } from "@/lib/storage";
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,35 +12,42 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const type = (formData.get("type") as string) || "DOCUMENT";
+    const isTemporary = formData.get("isTemporary") === "true";
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
+    // Configurable size limit: e.g. 50MB for general uploads
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: "File exceeds maximum size limit (50MB). For larger files, please request a direct upload URL." },
+        { status: 413 }
+      );
+    }
+
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Ensure uploads directory exists
-    const uploadsDir = path.join(process.cwd(), "public", "uploads");
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
-    // Sanitize and generate unique filename
-    const ext = path.extname(file.name) || (type === "VOICE" ? ".webm" : ".bin");
-    const safeName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}${ext}`;
-    const filePath = path.join(uploadsDir, safeName);
-
-    fs.writeFileSync(filePath, buffer);
-
-    const fileUrl = `/uploads/${safeName}`;
+    const uploadResult = await uploadFile(
+      buffer,
+      file.name || "attachment",
+      file.type || "application/octet-stream",
+      type
+    );
 
     return NextResponse.json({
       success: true,
-      fileUrl,
-      fileName: file.name || safeName,
-      fileSize: file.size,
+      fileUrl: uploadResult.fileUrl,
+      fileKey: uploadResult.fileKey,
+      fileName: uploadResult.fileName,
+      fileSize: uploadResult.fileSize,
+      mimeType: uploadResult.mimeType,
+      thumbnailUrl: uploadResult.thumbnailUrl,
+      storageType: uploadResult.storageType,
       type,
+      isTemporary,
     });
   } catch (error: any) {
     console.error("Upload error:", error);

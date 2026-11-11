@@ -24,9 +24,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    // Fetch messages
+    const { searchParams } = new URL(req.url);
+    const cursor = searchParams.get("cursor"); // message id
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "30", 10), 5), 100);
+
+    // Optimized cursor-based pagination
+    // If cursor is provided, we fetch messages older than the cursor message
+    let cursorCondition: any = {};
+    if (cursor) {
+      const cursorMessage = await prisma.message.findUnique({
+        where: { id: cursor },
+        select: { createdAt: true },
+      });
+
+      if (cursorMessage) {
+        cursorCondition = {
+          createdAt: {
+            lt: cursorMessage.createdAt,
+          },
+        };
+      }
+    }
+
     const messages = await prisma.message.findMany({
-      where: { conversationId: id },
+      where: {
+        conversationId: id,
+        ...cursorCondition,
+      },
       include: {
         sender: {
           select: {
@@ -55,19 +79,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           },
         },
       },
-      orderBy: { createdAt: "asc" },
-      take: 200,
+      orderBy: { createdAt: "desc" },
+      take: limit + 1,
     });
 
-    // Mark unread messages as read and reset unread count
-    if (membership.unreadCount > 0) {
+    const hasMore = messages.length > limit;
+    const items = hasMore ? messages.slice(0, limit) : messages;
+    // Reverse to return in chronological order for UI rendering
+    const chronologicalMessages = [...items].reverse();
+    const nextCursor = hasMore ? items[items.length - 1].id : null;
+
+    // Mark unread messages as read and reset unread count when reading latest messages
+    if (!cursor && membership.unreadCount > 0) {
       await prisma.conversationMember.update({
         where: { id: membership.id },
         data: { unreadCount: 0 },
       });
 
       // Update receipts
-      const unreadMessageIds = messages
+      const unreadMessageIds = chronologicalMessages
         .filter((m) => m.senderId !== currentUser.id)
         .map((m) => m.id);
 
@@ -93,7 +123,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
-    return NextResponse.json({ messages });
+    return NextResponse.json({
+      messages: chronologicalMessages,
+      nextCursor,
+      hasMore,
+    });
   } catch (error: any) {
     console.error("Get messages error:", error);
     return NextResponse.json({ error: error.message || "Failed to load messages" }, { status: 500 });
@@ -123,7 +157,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const body = await req.json();
-    const { content, type = "TEXT", fileUrl, fileName, fileSize, replyToId } = body;
+    const {
+      content,
+      type = "TEXT",
+      fileUrl,
+      fileName,
+      fileSize,
+      fileKey,
+      mimeType,
+      thumbnailUrl,
+      isTemporary = false,
+      isImportant = false,
+      replyToId,
+    } = body;
 
     if (!content && !fileUrl) {
       return NextResponse.json({ error: "Message content or file required" }, { status: 400 });
@@ -137,7 +183,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         type,
         fileUrl: fileUrl || null,
         fileName: fileName || null,
-        fileSize: fileSize || null,
+        fileSize: fileSize ? Number(fileSize) : null,
+        fileKey: fileKey || null,
+        mimeType: mimeType || null,
+        thumbnailUrl: thumbnailUrl || null,
+        isTemporary: Boolean(isTemporary),
+        isImportant: Boolean(isImportant),
         replyToId: replyToId || null,
       },
       include: {

@@ -50,6 +50,38 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const currentUser = await getCurrentUser(req);
+    if (!currentUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const message = await prisma.message.findUnique({
+      where: { id },
+    });
+
+    if (!message) {
+      return NextResponse.json({ error: "Message not found" }, { status: 404 });
+    }
+
+    const body = await req.json();
+    const { isImportant } = body;
+
+    const updated = await prisma.message.update({
+      where: { id },
+      data: {
+        ...(isImportant !== undefined ? { isImportant: Boolean(isImportant) } : {}),
+      },
+    });
+
+    return NextResponse.json({ success: true, message: updated });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "Failed to update message" }, { status: 500 });
+  }
+}
+
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;

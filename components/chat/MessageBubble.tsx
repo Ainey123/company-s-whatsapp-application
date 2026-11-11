@@ -15,6 +15,7 @@ import {
   Trash2,
   MoreVertical,
   Volume2,
+  Star,
 } from "lucide-react";
 import { formatMessageTime, formatFileSize, formatDuration } from "@/lib/utils";
 import { Avatar } from "@/components/ui/Avatar";
@@ -28,6 +29,11 @@ export interface MessageData {
   fileUrl?: string | null;
   fileName?: string | null;
   fileSize?: number | null;
+  fileKey?: string | null;
+  mimeType?: string | null;
+  thumbnailUrl?: string | null;
+  isTemporary?: boolean;
+  isImportant?: boolean;
   replyToId?: string | null;
   isEdited: boolean;
   isDeleted: boolean;
@@ -56,6 +62,7 @@ interface MessageBubbleProps {
   onForward: (message: MessageData) => void;
   onEdit: (message: MessageData) => void;
   onDelete: (messageId: string) => void;
+  onToggleImportant?: (message: MessageData) => void;
 }
 
 export function MessageBubble({
@@ -66,6 +73,7 @@ export function MessageBubble({
   onForward,
   onEdit,
   onDelete,
+  onToggleImportant,
 }: MessageBubbleProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -306,6 +314,16 @@ export function MessageBubble({
 
           {/* Bottom Timestamp, Edited tag & Status ticks */}
           <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-neutral-500 dark:text-neutral-400 select-none">
+            {message.isImportant && (
+              <span title="Important (Protected from retention)">
+                <Star className="w-3 h-3 text-amber-500 fill-amber-500 mr-0.5" />
+              </span>
+            )}
+            {message.isTemporary && (
+              <span className="text-[9px] px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 mr-0.5">
+                temp
+              </span>
+            )}
             {message.isEdited && <span className="italic mr-0.5">edited</span>}
             <span>{formatMessageTime(message.createdAt)}</span>
 
@@ -353,6 +371,18 @@ export function MessageBubble({
               >
                 <Forward className="w-3.5 h-3.5" /> Forward
               </button>
+              {onToggleImportant && (
+                <button
+                  onClick={() => {
+                    onToggleImportant(message);
+                    setShowMenu(false);
+                  }}
+                  className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 text-left"
+                >
+                  <Star className={`w-3.5 h-3.5 ${message.isImportant ? "text-amber-500 fill-amber-500" : ""}`} />
+                  {message.isImportant ? "Unstar" : "Star / Important"}
+                </button>
+              )}
               {message.content && (
                 <button
                   onClick={copyText}
