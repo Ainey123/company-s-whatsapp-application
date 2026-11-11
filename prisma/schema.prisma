@@ -1,0 +1,132 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  phone        String   @unique
+  passwordHash String
+  displayName  String
+  avatar       String?
+  designation  String?
+  department   String?
+  role         String   @default("EMPLOYEE") // SUPER_ADMIN, ADMIN, MANAGER, EMPLOYEE
+  status       String   @default("ACTIVE")   // ACTIVE, SUSPENDED
+  isOnline     Boolean  @default(false)
+  lastSeen     DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships     ConversationMember[]
+  messages        Message[]
+  receipts        MessageReceipt[]
+  callsInitiated  CallLog[]            @relation("CallerCalls")
+  callsReceived   CallLog[]            @relation("ReceiverCalls")
+  auditLogs       AuditLog[]
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+model Conversation {
+  id            String   @id @default(cuid())
+  isGroup       Boolean  @default(false)
+  name          String?
+  description   String?
+  avatar        String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastMessageAt DateTime @default(now())
+
+  members  ConversationMember[]
+  messages Message[]
+}
+
+model ConversationMember {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  role           String   @default("MEMBER") // ADMIN, MEMBER
+  joinedAt       DateTime @default(now())
+  isMuted        Boolean  @default(false)
+  isArchived     Boolean  @default(false)
+  isPinned       Boolean  @default(false)
+  unreadCount    Int      @default(0)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+  type           String   @default("TEXT") // TEXT, IMAGE, VIDEO, AUDIO, DOCUMENT, VOICE
+  fileUrl        String?
+  fileName       String?
+  fileSize       Int?
+  replyToId      String?
+  isEdited       Boolean  @default(false)
+  isDeleted      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User             @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      Message?         @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      Message[]        @relation("MessageReplies")
+  receipts     MessageReceipt[]
+}
+
+model MessageReceipt {
+  id        String    @id @default(cuid())
+  messageId String
+  userId    String
+  status    String    @default("SENT") // SENT, DELIVERED, READ
+  readAt    DateTime?
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+}
+
+model CallLog {
+  id          String    @id @default(cuid())
+  callerId    String
+  receiverId  String
+  type        String    @default("AUDIO") // AUDIO, VIDEO
+  status      String    @default("COMPLETED") // MISSED, COMPLETED, REJECTED, BUSY
+  durationSec Int       @default(0)
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+
+  caller   User @relation("CallerCalls", fields: [callerId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceiverCalls", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
