@@ -26,12 +26,19 @@ async function runBootstrap(): Promise<void> {
 
   // 2. Ensure initial Super Admin and basic workspace data exist
   try {
-    const userCount = await prisma.user.count();
-    if (userCount === 0) {
-      console.log("🌱 Database is empty. Seeding initial Super Admin and Departments...");
-      const passwordHash = await bcrypt.hash("admin123", 10);
-      
-      const admin = await prisma.user.create({
+    const adminHash = await bcrypt.hash("admin123", 10);
+    let admin = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: "admin" },
+          { email: "admin@connectpro.internal" },
+        ],
+      },
+    });
+
+    if (!admin) {
+      console.log("🌱 Creating default Super Admin account (admin / admin123)...");
+      admin = await prisma.user.create({
         data: {
           username: "admin",
           email: "admin@connectpro.internal",
@@ -42,11 +49,13 @@ async function runBootstrap(): Promise<void> {
           role: "SUPER_ADMIN",
           status: "ACTIVE",
           avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-          passwordHash,
+          passwordHash: adminHash,
         },
       });
+    }
 
-      // Default departments
+    const deptCount = await prisma.department.count();
+    if (deptCount === 0) {
       const depts = [
         "Executive Leadership",
         "Product & Engineering",
