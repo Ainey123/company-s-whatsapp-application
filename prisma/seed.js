@@ -34,7 +34,7 @@ async function main() {
   console.log(`✅ Initialized ${departments.length} corporate departments.`);
 
   // 3. Create Primary Super Administrator
-  const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || "AdminPassword123!";
+  const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || "admin123";
   const passwordHash = await bcrypt.hash(adminPassword, 10);
 
   const superAdmin = await prisma.user.create({

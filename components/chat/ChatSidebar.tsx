@@ -14,6 +14,7 @@ import {
   Sun,
   Layers,
   BookUser,
+  Settings,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatChatListTime } from "@/lib/utils";
@@ -174,6 +175,14 @@ export function ChatSidebar({
               <ShieldCheck className="w-5 h-5" />
             </Link>
           )}
+
+          <button
+            onClick={onOpenProfile}
+            className="p-2 text-neutral-600 dark:text-neutral-300 hover:text-brand-700 dark:hover:text-emerald-400 hover:bg-neutral-200/60 dark:hover:bg-neutral-800 rounded-full transition-colors"
+            title="Account Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
 
           <button
             onClick={toggleDarkMode}

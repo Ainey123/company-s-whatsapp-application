@@ -55,7 +55,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const body = await req.json();
-    const { displayName, avatar, designation, department, role, status, password } = body;
+    const { displayName, avatar, designation, department, role, status, password, passcode } = body;
+
+    // Security Gate: Changing Name or Password requires Passcode 9999
+    const isChangingNameOrPassword = (displayName && displayName.trim() !== currentUser.displayName) || Boolean(password);
+    if (isChangingNameOrPassword) {
+      if (passcode !== "9999") {
+        return NextResponse.json(
+          { error: "Security Passcode Required: Please enter the 4-digit passcode (9999) to change your name or password." },
+          { status: 403 }
+        );
+      }
+    }
 
     const dataToUpdate: any = {};
 

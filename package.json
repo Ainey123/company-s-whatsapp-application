@@ -6,6 +6,8 @@
     "dev": "node server.js",
     "build": "next build",
     "start": "NODE_ENV=production node server.js",
+    "db:migrate": "prisma migrate deploy",
+    "db:deploy:neon": "node scripts/deploy-neon.js",
     "db:push": "prisma db push",
     "db:seed": "node prisma/seed.js",
     "db:studio": "prisma studio"
