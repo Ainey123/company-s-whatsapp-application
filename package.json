@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node server.js",
     "build": "next build",
+    "postinstall": "prisma generate",
     "start": "NODE_ENV=production node server.js",
     "db:migrate": "prisma migrate deploy",
     "db:deploy:neon": "node scripts/deploy-neon.js",
