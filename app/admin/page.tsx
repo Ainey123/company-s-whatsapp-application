@@ -172,6 +172,31 @@ export default function AdminDashboardPage() {
     } catch (e) {}
   };
 
+  // Delete / Remove Employee
+  const handleDeleteEmployee = async (emp: any) => {
+    if (emp.role === "SUPER_ADMIN" || emp.username === "admin") {
+      alert("Cannot delete the Super Administrator account.");
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to permanently remove employee "${emp.displayName}" (@${emp.username})?\n\nThis will remove their profile and chat memberships.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/users/${emp.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setEmployees((prev) => prev.filter((e) => e.id !== emp.id));
+        loadAllAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to remove employee");
+      }
+    } catch (e) {
+      alert("Error removing employee");
+    }
+  };
+
   // Add Department
   const handleAddDepartment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -499,6 +524,16 @@ export default function AdminDashboardPage() {
                               <CheckCircle className="w-3.5 h-3.5" />
                             )}
                           </button>
+
+                          {emp.role !== "SUPER_ADMIN" && emp.username !== "admin" && (
+                            <button
+                              onClick={() => handleDeleteEmployee(emp)}
+                              className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg text-rose-600 dark:text-rose-400 transition-colors"
+                              title="Delete / Remove Employee Permanently"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

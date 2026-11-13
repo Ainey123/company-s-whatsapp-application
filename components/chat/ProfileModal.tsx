@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import {
   X,
   User,
@@ -338,6 +339,25 @@ export function ProfileModal({ onClose }: ProfileModalProps) {
                   />
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Admin Management Quick Link */}
+          {(user.role === "SUPER_ADMIN" || user.role === "ADMIN") && (
+            <div className="pt-2 border-t border-neutral-200 dark:border-chat-darkBorder">
+              <Link
+                href="/admin"
+                onClick={onClose}
+                className="w-full py-2.5 px-3 bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700/80 text-neutral-800 dark:text-neutral-200 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#00A884]" />
+                  <span>Company Admin (Create / Remove Employees)</span>
+                </span>
+                <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                  Open Admin →
+                </span>
+              </Link>
             </div>
           )}
 

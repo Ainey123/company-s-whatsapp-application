@@ -57,9 +57,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const body = await req.json();
     const { displayName, avatar, designation, department, role, status, password, passcode } = body;
 
-    // Security Gate: Changing Name or Password requires Passcode 9999
+    // Security Gate: Regular user changing Name or Password requires Passcode 9999
     const isChangingNameOrPassword = (displayName && displayName.trim() !== currentUser.displayName) || Boolean(password);
-    if (isChangingNameOrPassword) {
+    if (isSelf && isChangingNameOrPassword) {
       if (passcode !== "9999") {
         return NextResponse.json(
           { error: "Security Passcode Required: Please enter the 4-digit passcode (9999) to change your name or password." },
@@ -138,8 +138,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Soft delete / suspend by default for enterprise safety, or hard delete
-    await prisma.user.delete({ where: { id } });
+    // Cleanly delete user and handle cascaded records in a transaction
+    await prisma.$transaction([
+      prisma.messageReceipt.deleteMany({ where: { userId: id } }),
+      prisma.conversationMember.deleteMany({ where: { userId: id } }),
+      prisma.message.deleteMany({ where: { senderId: id } }),
+      prisma.user.delete({ where: { id } }),
+    ]);
 
     await prisma.auditLog.create({
       data: {

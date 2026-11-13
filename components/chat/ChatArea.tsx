@@ -15,6 +15,7 @@ import {
   FileText,
   Film,
   ChevronDown,
+  MessageCircle,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { MessageBubble, MessageData } from "./MessageBubble";
@@ -436,6 +437,19 @@ export function ChatArea({ conversation, onToggleInfo, onForwardMessage }: ChatA
 
         {/* Action icons */}
         <div className="flex items-center gap-1">
+          {!conversation.isGroup && conversation.otherUser?.phone && (
+            <a
+              href={`https://wa.me/${conversation.otherUser.phone.replace(/\D/g, "")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-full transition-colors flex items-center gap-1 font-semibold text-xs border border-emerald-200 dark:border-emerald-800"
+              title={`Open direct chat with ${conversation.otherUser.displayName} on real WhatsApp`}
+            >
+              <MessageCircle className="w-3.5 h-3.5 fill-current" />
+              <span className="text-[11px] hidden sm:inline">WhatsApp</span>
+            </a>
+          )}
+
           <button
             onClick={handleStartAudioCall}
             className="p-2 text-neutral-600 dark:text-neutral-300 hover:text-brand-700 dark:hover:text-emerald-400 hover:bg-neutral-200/60 dark:hover:bg-neutral-800 rounded-full transition-colors"
