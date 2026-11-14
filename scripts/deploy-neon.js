@@ -68,14 +68,21 @@ async function main() {
     }
     console.log(`✅ Departments verified (${createdDepts} newly added, ${departments.length - createdDepts} existing).`);
 
-    // 3b. Verify or Create Default Super Admin (Never overwrites existing admin)
+    // 3b. Verify or Create Default Super Admin (Requires ADMIN_INITIAL_PASSWORD in production)
     const existingAdmin = await prisma.user.findFirst({
       where: {
         OR: [{ username: "admin" }, { email: "admin@connectpro.internal" }],
       },
     });
 
-    const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || "admin123";
+    const adminPassword = (process.env.ADMIN_INITIAL_PASSWORD || "").trim();
+
+    if (!adminPassword || adminPassword === "admin123") {
+      console.error(
+        "❌ SECURITY ERROR: Set a strong ADMIN_INITIAL_PASSWORD environment variable (cannot be empty or 'admin123') before running production deployment."
+      );
+      process.exit(1);
+    }
 
     if (!existingAdmin) {
       const passwordHash = await bcrypt.hash(adminPassword, 10);
@@ -142,7 +149,22 @@ async function main() {
 
       console.log("✅ Created 'Company Announcements' group and default Retention Policy.");
     } else {
-      console.log(`ℹ️ Super Administrator already exists: ${existingAdmin.displayName} (@${existingAdmin.username}). Preserved.`);
+      const hasValidBcryptPrefix =
+        typeof existingAdmin.passwordHash === "string" &&
+        existingAdmin.passwordHash.startsWith("$2");
+      const isLegacyDefault =
+        !hasValidBcryptPrefix ||
+        (await bcrypt.compare("admin123", existingAdmin.passwordHash));
+      if (isLegacyDefault) {
+        const rotatedHash = await bcrypt.hash(adminPassword, 10);
+        await prisma.user.update({
+          where: { id: existingAdmin.id },
+          data: { passwordHash: rotatedHash },
+        });
+        console.log("✅ Rotated legacy Super Administrator password to ADMIN_INITIAL_PASSWORD.");
+      } else {
+        console.log(`ℹ️ Super Administrator already exists: ${existingAdmin.displayName} (@${existingAdmin.username}). Preserved.`);
+      }
     }
 
     console.log("\n========================================================");

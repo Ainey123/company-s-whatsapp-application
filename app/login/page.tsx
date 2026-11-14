@@ -7,12 +7,12 @@ import { MessageSquare, ShieldCheck, Phone, ArrowRight, Lock, User, AlertCircle,
 export default function LoginPage() {
   const { login } = useAuth();
   
-  // Login method tabs: PASSWORD (admin / admin123) or PHONE (WhatsApp mobile number)
+  // Login method tabs: PASSWORD or PHONE (WhatsApp mobile number)
   const [loginMethod, setLoginMethod] = useState<"PASSWORD" | "PHONE">("PASSWORD");
 
-  // Password fields (default: admin / admin123)
-  const [identifier, setIdentifier] = useState("admin");
-  const [password, setPassword] = useState("admin123");
+  // Password fields
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
 
   // Phone field
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -28,7 +28,7 @@ export default function LoginPage() {
     if (loginMethod === "PASSWORD") {
       const res = await login(identifier.trim(), password);
       if (!res.success) {
-        setError(res.error || "Invalid username or password. Default admin: admin / admin123");
+        setError(res.error || "Invalid username or password.");
         setLoading(false);
       }
     } else {
@@ -126,7 +126,7 @@ export default function LoginPage() {
                     required
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="admin"
+                    placeholder="Enter username or work email"
                     className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-neutral-100 dark:bg-chat-darkIn border border-neutral-200 dark:border-chat-darkBorder rounded-xl focus:outline-hidden focus:ring-1.5 focus:ring-[#00A884] text-neutral-900 dark:text-neutral-100"
                   />
                 </div>
@@ -143,25 +143,10 @@ export default function LoginPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="admin123"
+                    placeholder="Enter your password"
                     className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-neutral-100 dark:bg-chat-darkIn border border-neutral-200 dark:border-chat-darkBorder rounded-xl focus:outline-hidden focus:ring-1.5 focus:ring-[#00A884] text-neutral-900 dark:text-neutral-100"
                   />
                 </div>
-              </div>
-
-              {/* Preset helper pill */}
-              <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-chat-darkBorder flex items-center justify-between text-xs">
-                <span className="text-[11px] text-neutral-500">Preset Admin Login:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIdentifier("admin");
-                    setPassword("admin123");
-                  }}
-                  className="text-[11px] font-bold text-[#00A884] hover:underline"
-                >
-                  admin / admin123
-                </button>
               </div>
             </>
           ) : (
@@ -178,24 +163,13 @@ export default function LoginPage() {
                     autoFocus
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="e.g. +1-555-0100"
+                    placeholder="Enter your registered mobile number"
                     className="w-full pl-10 pr-3.5 py-2.5 text-xs bg-neutral-100 dark:bg-chat-darkIn border border-neutral-200 dark:border-chat-darkBorder rounded-xl focus:outline-hidden focus:ring-1.5 focus:ring-[#00A884] text-neutral-900 dark:text-neutral-100"
                   />
                 </div>
                 <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
-                  Instant login for numbers registered in company Contacts.
+                  Instant login for employee numbers registered in company Contacts.
                 </p>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-chat-darkBorder flex items-center justify-between text-xs">
-                <span className="text-[11px] text-neutral-500">Registered Admin Phone:</span>
-                <button
-                  type="button"
-                  onClick={() => setPhoneNumber("+1-555-0100")}
-                  className="text-[11px] font-bold text-[#00A884] hover:underline"
-                >
-                  +1-555-0100
-                </button>
               </div>
             </>
           )}

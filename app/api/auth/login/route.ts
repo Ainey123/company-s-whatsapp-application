@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import bcrypt from "bcryptjs";
 import { comparePassword, signToken } from "@/lib/auth";
-import { ensureDatabaseReady } from "@/lib/bootstrap";
+import { ensureDatabaseReady, isProductionEnvironment } from "@/lib/bootstrap";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,13 +9,13 @@ export async function POST(req: NextRequest) {
     await ensureDatabaseReady();
 
     const body = await req.json();
-    const { identifier, phone, password, isDemoSwitch } = body;
+    const { identifier, phone, password } = body;
 
     const rawInput = (phone || identifier || "").trim();
 
     if (!rawInput) {
       return NextResponse.json(
-        { error: "Please enter your WhatsApp mobile phone number" },
+        { error: "Please enter your username, email, or registered WhatsApp mobile number" },
         { status: 400 }
       );
     }
@@ -29,7 +28,7 @@ export async function POST(req: NextRequest) {
       where: {
         OR: [
           { phone: rawInput },
-          { phone: `+${digitsOnly}` },
+          ...(digitsOnly ? [{ phone: `+${digitsOnly}` }] : []),
           { username: { equals: cleanInput, mode: "insensitive" } },
           { email: { equals: cleanInput, mode: "insensitive" } },
         ],
@@ -48,25 +47,6 @@ export async function POST(req: NextRequest) {
       if (match) {
         user = await prisma.user.findUnique({ where: { id: match.id } });
       }
-    }
-
-    // If admin is requested but user record not found yet, create default admin on the fly
-    if (!user && (cleanInput === "admin" || cleanInput === "admin@connectpro.internal")) {
-      const defaultHash = await bcrypt.hash("admin123", 10);
-      user = await prisma.user.create({
-        data: {
-          username: "admin",
-          email: "admin@connectpro.internal",
-          phone: "+1-555-0100",
-          displayName: "System Administrator",
-          designation: "Head of Infrastructure & IT",
-          department: "Executive Leadership",
-          role: "SUPER_ADMIN",
-          status: "ACTIVE",
-          avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-          passwordHash: defaultHash,
-        },
-      });
     }
 
     // 3. Number/User not found in registered company directory
@@ -88,32 +68,51 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Password verification (ONLY if password is explicitly provided e.g. for admin username login)
-    // If logging in via phone number (WhatsApp style), password is NOT required!
-    if (password && !isDemoSwitch) {
-      const isAdminMatch =
-        (cleanInput === "admin" || user.username.toLowerCase() === "admin") &&
-        password === "admin123";
+    // 5. Password verification
+    // Admin accounts (SUPER_ADMIN / ADMIN) and username/email logins ALWAYS require a valid password.
+    const isAdminAccount =
+      user.role === "SUPER_ADMIN" ||
+      user.role === "ADMIN" ||
+      user.username.toLowerCase() === "admin";
+    const isPhoneLookup =
+      !isAdminAccount &&
+      digitsOnly.length >= 7 &&
+      (user.phone === rawInput ||
+        user.phone === `+${digitsOnly}` ||
+        (user.phone || "").replace(/\D/g, "").endsWith(digitsOnly));
+    const requiresPassword = isAdminAccount || Boolean(password) || !isPhoneLookup;
+
+    if (requiresPassword) {
+      if (!password || typeof password !== "string" || !password.trim()) {
+        return NextResponse.json(
+          { error: "Password is required for this account" },
+          { status: 401 }
+        );
+      }
+
+      const isProd = isProductionEnvironment();
+
+      // Hard block: the default 'admin123' password can NEVER work in production
+      if (isProd && password === "admin123") {
+        return NextResponse.json(
+          { error: "Invalid password credentials" },
+          { status: 401 }
+        );
+      }
 
       const isHashValid = user.passwordHash
         ? await comparePassword(password, user.passwordHash)
         : false;
 
-      if (!isHashValid && !isAdminMatch) {
-        return NextResponse.json({ error: "Invalid password credentials" }, { status: 401 });
-      }
+      // Dev-only fallback: only when strictly not in production AND no custom ADMIN_INITIAL_PASSWORD is set
+      const isDevOnlyOverride =
+        !isProd &&
+        !process.env.ADMIN_INITIAL_PASSWORD &&
+        (cleanInput === "admin" || user.username.toLowerCase() === "admin") &&
+        password === "admin123";
 
-      // If logging in with admin123 and the stored hash is different or outdated, sync it safely
-      if (isAdminMatch && !isHashValid) {
-        try {
-          const freshHash = await bcrypt.hash("admin123", 10);
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { passwordHash: freshHash },
-          });
-        } catch (e) {
-          // Non-fatal
-        }
+      if (!isHashValid && !isDevOnlyOverride) {
+        return NextResponse.json({ error: "Invalid password credentials" }, { status: 401 });
       }
     }
 

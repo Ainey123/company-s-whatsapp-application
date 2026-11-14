@@ -3,6 +3,14 @@ import bcrypt from "bcryptjs";
 
 let bootstrapPromise: Promise<void> | null = null;
 
+export function isProductionEnvironment(): boolean {
+  return (
+    process.env.NODE_ENV === "production" ||
+    Boolean(process.env.VERCEL) ||
+    Boolean(process.env.VERCEL_ENV)
+  );
+}
+
 export async function ensureDatabaseReady(): Promise<void> {
   if (!bootstrapPromise) {
     bootstrapPromise = runBootstrap();
@@ -15,6 +23,15 @@ async function runBootstrap(): Promise<void> {
     // 1. Test if User table exists
     await prisma.$queryRawUnsafe('SELECT 1 FROM "User" LIMIT 1');
   } catch (err: any) {
+    const errMsg = String(err?.message || "");
+    if (
+      err?.code === "P1001" ||
+      errMsg.includes("Can't reach database server") ||
+      errMsg.includes("ECONNREFUSED")
+    ) {
+      bootstrapPromise = null;
+      return;
+    }
     // Table missing in PostgreSQL (42P01 or P2021) -> Auto-create all tables
     console.log("⚠️ Tables missing in database. Running auto-bootstrap schema initialization...");
     try {
@@ -26,18 +43,37 @@ async function runBootstrap(): Promise<void> {
 
   // 2. Ensure initial Super Admin and basic workspace data exist
   try {
-    const adminHash = await bcrypt.hash("admin123", 10);
+    const isProd = isProductionEnvironment();
+    const envAdminPassword = (process.env.ADMIN_INITIAL_PASSWORD || "").trim();
+    const effectiveAdminPassword = isProd
+      ? envAdminPassword
+      : envAdminPassword || "admin123";
+
     let admin = await prisma.user.findFirst({
       where: {
         OR: [
-          { username: "admin" },
-          { email: "admin@connectpro.internal" },
+          { username: { equals: "admin", mode: "insensitive" } },
+          { email: { equals: "admin@connectpro.internal", mode: "insensitive" } },
         ],
       },
     });
 
     if (!admin) {
-      console.log("🌱 Creating default Super Admin account (admin / admin123)...");
+      if (!effectiveAdminPassword) {
+        console.error(
+          "❌ SECURITY: ADMIN_INITIAL_PASSWORD environment variable is required in production to create the initial Super Admin account."
+        );
+        return;
+      }
+      if (isProd && effectiveAdminPassword === "admin123") {
+        console.error(
+          "❌ SECURITY: ADMIN_INITIAL_PASSWORD cannot be set to 'admin123' in production."
+        );
+        return;
+      }
+
+      console.log("🌱 Creating initial Super Admin account...");
+      const adminHash = await bcrypt.hash(effectiveAdminPassword, 10);
       admin = await prisma.user.create({
         data: {
           username: "admin",
@@ -52,6 +88,20 @@ async function runBootstrap(): Promise<void> {
           passwordHash: adminHash,
         },
       });
+    } else if (envAdminPassword && envAdminPassword !== "admin123") {
+      // Rotate legacy 'admin123' or corrupted password hash to ADMIN_INITIAL_PASSWORD
+      const hasValidBcryptPrefix =
+        typeof admin.passwordHash === "string" && admin.passwordHash.startsWith("$2");
+      const isLegacyDefault =
+        !hasValidBcryptPrefix || (await bcrypt.compare("admin123", admin.passwordHash));
+      if (isLegacyDefault) {
+        const rotatedHash = await bcrypt.hash(envAdminPassword, 10);
+        admin = await prisma.user.update({
+          where: { id: admin.id },
+          data: { passwordHash: rotatedHash },
+        });
+        console.log("✅ SECURITY: Rotated legacy Super Admin password hash to ADMIN_INITIAL_PASSWORD.");
+      }
     }
 
     const deptCount = await prisma.department.count();

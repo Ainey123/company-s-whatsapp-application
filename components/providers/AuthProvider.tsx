@@ -82,25 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const switchUser = async (username: string) => {
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: username, isDemoSwitch: true }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-        setToken(data.token);
-        window.location.href = "/chat";
-        return true;
-      }
-      return false;
-    } catch {
-      return false;
-    }
+  const switchUser = async (_username: string) => {
+    // Passwordless account switching is disabled for security
+    return false;
   };
 
   const logout = async () => {

@@ -34,7 +34,25 @@ async function main() {
   console.log(`✅ Initialized ${departments.length} corporate departments.`);
 
   // 3. Create Primary Super Administrator
-  const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || "admin123";
+  const isProduction =
+    process.env.NODE_ENV === "production" ||
+    Boolean(process.env.VERCEL) ||
+    Boolean(process.env.VERCEL_ENV);
+  const adminPassword = isProduction
+    ? (process.env.ADMIN_INITIAL_PASSWORD || "").trim()
+    : (process.env.ADMIN_INITIAL_PASSWORD || "admin123").trim();
+
+  if (!adminPassword) {
+    throw new Error(
+      "SECURITY ERROR: ADMIN_INITIAL_PASSWORD environment variable is required in production."
+    );
+  }
+  if (isProduction && adminPassword === "admin123") {
+    throw new Error(
+      "SECURITY ERROR: ADMIN_INITIAL_PASSWORD cannot be 'admin123' in production."
+    );
+  }
+
   const passwordHash = await bcrypt.hash(adminPassword, 10);
 
   const superAdmin = await prisma.user.create({
