@@ -14,7 +14,8 @@ import { ForwardModal } from "@/components/chat/ForwardModal";
 import { VideoCallModal } from "@/components/call/VideoCallModal";
 import { IncomingCallDialog } from "@/components/call/IncomingCallDialog";
 import { MessageData } from "@/components/chat/MessageBubble";
-import { MessageSquare, ShieldCheck, Lock, Users, Layers } from "lucide-react";
+import { WhatsAppMultiEmployeeInbox } from "@/components/chat/WhatsAppMultiEmployeeInbox";
+import { MessageSquare, ShieldCheck, Lock, Users, Layers, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 function ChatDashboardContent() {
@@ -26,6 +27,7 @@ function ChatDashboardContent() {
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [activeConversation, setActiveConversation] = useState<ConversationItem | null>(null);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
+  const [activeChannel, setActiveChannel] = useState<"INTERNAL" | "WHATSAPP">("INTERNAL");
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showNewGroupModal, setShowNewGroupModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -179,88 +181,122 @@ function ChatDashboardContent() {
       <VideoCallModal />
 
       {/* Main Layout Container */}
-      <div className="flex w-full h-full">
-        {/* Left Sidebar */}
-        <div
-          className={`${
-            activeConversation ? "hidden md:flex" : "flex"
-          } w-full md:w-96 shrink-0 h-full`}
-        >
-          <ChatSidebar
-            conversations={conversations}
-            activeConversationId={activeConversation?.id || null}
-            onSelectConversation={(conv) => {
-              setActiveConversation(conv);
-            }}
-            onOpenNewChat={() => setShowNewChatModal(true)}
-            onOpenNewGroup={() => setShowNewGroupModal(true)}
-            onOpenProfile={() => setShowProfileModal(true)}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-          />
+      {activeChannel === "WHATSAPP" ? (
+        <div className="flex flex-col w-full h-full">
+          {/* Channel Return Bar */}
+          <div className="px-4 py-2 bg-white dark:bg-chat-darkPanel border-b border-neutral-200 dark:border-chat-darkBorder flex items-center justify-between text-xs font-semibold shrink-0">
+            <button
+              onClick={() => setActiveChannel("INTERNAL")}
+              className="px-3 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Return to Internal Company Chats</span>
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300">
+                Shared WhatsApp Inbox (MOCK DATA — Phase B preview, not connected)
+              </span>
+            </div>
+          </div>
+          <div className="flex-1 min-h-0">
+            <WhatsAppMultiEmployeeInbox />
+          </div>
         </div>
-
-        {/* Middle Panel: Active Conversation or Empty Welcome Screen */}
-        <div
-          className={`${
-            !activeConversation ? "hidden md:flex" : "flex"
-          } flex-1 flex-col h-full min-w-0`}
-        >
-          {activeConversation ? (
-            <ChatArea
-              conversation={activeConversation}
-              onToggleInfo={() => setShowInfoPanel(!showInfoPanel)}
-              onForwardMessage={(msg) => setForwardingMessage(msg)}
+      ) : (
+        <div className="flex w-full h-full">
+          {/* Left Sidebar */}
+          <div
+            className={`${
+              activeConversation ? "hidden md:flex" : "flex"
+            } w-full md:w-96 shrink-0 h-full`}
+          >
+            <ChatSidebar
+              conversations={conversations}
+              activeConversationId={activeConversation?.id || null}
+              onSelectConversation={(conv) => {
+                setActiveConversation(conv);
+              }}
+              onOpenNewChat={() => setShowNewChatModal(true)}
+              onOpenNewGroup={() => setShowNewGroupModal(true)}
+              onOpenProfile={() => setShowProfileModal(true)}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              channel={activeChannel}
+              onChannelChange={setActiveChannel}
             />
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#F0F2F5] dark:bg-[#0C1317] select-none">
-              <div className="w-20 h-20 rounded-3xl bg-brand-100 dark:bg-emerald-950/40 text-brand-700 dark:text-emerald-400 flex items-center justify-center shadow-lg mb-4">
-                <MessageSquare className="w-10 h-10" />
-              </div>
-              <h2 className="text-xl font-bold text-neutral-800 dark:text-neutral-100 mb-2">
-                ConnectPro for Enterprise
-              </h2>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mb-6 leading-relaxed">
-                Seamless company messaging, group collaboration, voice notes and secure one-on-one audio/video calls without external dependencies.
-              </p>
+          </div>
 
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                <Link
-                  href="/contacts"
-                  className="px-4 py-2.5 bg-white dark:bg-chat-darkPanel border border-neutral-200 dark:border-chat-darkBorder hover:border-brand-500 text-neutral-800 dark:text-neutral-200 rounded-2xl text-xs font-semibold shadow-2xs transition-all flex items-center gap-2"
-                >
-                  <Users className="w-4 h-4 text-brand-600" />
-                  View All Contacts
-                </Link>
+          {/* Middle Panel: Active Conversation or Empty Welcome Screen */}
+          <div
+            className={`${
+              !activeConversation ? "hidden md:flex" : "flex"
+            } flex-1 flex-col h-full min-w-0`}
+          >
+            {activeConversation ? (
+              <ChatArea
+                conversation={activeConversation}
+                onToggleInfo={() => setShowInfoPanel(!showInfoPanel)}
+                onForwardMessage={(msg) => setForwardingMessage(msg)}
+              />
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-[#F0F2F5] dark:bg-[#0C1317] select-none">
+                <div className="w-20 h-20 rounded-3xl bg-brand-100 dark:bg-emerald-950/40 text-brand-700 dark:text-emerald-400 flex items-center justify-center shadow-lg mb-4">
+                  <MessageSquare className="w-10 h-10" />
+                </div>
+                <h2 className="text-xl font-bold text-neutral-800 dark:text-neutral-100 mb-2">
+                  ConnectPro for Enterprise
+                </h2>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mb-6 leading-relaxed">
+                  Seamless company messaging, group collaboration, voice notes and secure one-on-one audio/video calls without external dependencies.
+                </p>
 
-                <button
-                  onClick={() => setShowNewGroupModal(true)}
-                  className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl text-xs font-bold shadow-md transition-transform hover:scale-105 flex items-center gap-2"
-                >
-                  <Layers className="w-4 h-4" />
-                  Create New Group
-                </button>
-              </div>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={() => setActiveChannel("WHATSAPP")}
+                    className="px-4 py-2.5 bg-[#25D366] hover:bg-[#20ba59] text-white rounded-2xl text-xs font-bold shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    <MessageSquare className="w-4 h-4 fill-current" />
+                    Open WhatsApp Shared Inbox (+92)
+                  </button>
 
-              <div className="mt-12 flex items-center gap-2 text-xs text-neutral-400">
-                <Lock className="w-3.5 h-3.5 text-brand-600" />
-                <span>Enterprise End-to-End Encrypted Communication</span>
+                  <Link
+                    href="/contacts"
+                    className="px-4 py-2.5 bg-white dark:bg-chat-darkPanel border border-neutral-200 dark:border-chat-darkBorder hover:border-brand-500 text-neutral-800 dark:text-neutral-200 rounded-2xl text-xs font-semibold shadow-2xs transition-all flex items-center gap-2"
+                  >
+                    <Users className="w-4 h-4 text-brand-600" />
+                    View All Contacts
+                  </Link>
+
+                  <button
+                    onClick={() => setShowNewGroupModal(true)}
+                    className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl text-xs font-bold shadow-md transition-transform hover:scale-105 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Layers className="w-4 h-4" />
+                    Create New Group
+                  </button>
+                </div>
+
+                <div className="mt-12 flex items-center gap-2 text-xs text-neutral-400">
+                  <Lock className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Enterprise End-to-End Encrypted Communication</span>
+                </div>
               </div>
+            )}
+          </div>
+
+          {/* Right Info Panel (Drawer) */}
+          {showInfoPanel && activeConversation && (
+            <div className="hidden lg:flex h-full shrink-0">
+              <ChatInfoPanel
+                conversationId={activeConversation.id}
+                onClose={() => setShowInfoPanel(false)}
+                onConversationUpdated={() => loadConversations(activeConversation.id)}
+              />
             </div>
           )}
         </div>
-
-        {/* Right Info Panel (Drawer) */}
-        {showInfoPanel && activeConversation && (
-          <div className="hidden lg:flex h-full shrink-0">
-            <ChatInfoPanel
-              conversationId={activeConversation.id}
-              onClose={() => setShowInfoPanel(false)}
-              onConversationUpdated={() => loadConversations(activeConversation.id)}
-            />
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Global Modals */}
       {showNewChatModal && (

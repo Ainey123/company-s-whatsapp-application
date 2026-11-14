@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import {
+  MessageSquare,
   MessageSquarePlus,
   Search,
   ShieldCheck,
@@ -63,6 +64,8 @@ interface ChatSidebarProps {
   onOpenProfile: () => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  channel?: "INTERNAL" | "WHATSAPP";
+  onChannelChange?: (ch: "INTERNAL" | "WHATSAPP") => void;
 }
 
 export function ChatSidebar({
@@ -74,6 +77,8 @@ export function ChatSidebar({
   onOpenProfile,
   searchQuery,
   onSearchChange,
+  channel = "INTERNAL",
+  onChannelChange,
 }: ChatSidebarProps) {
   const { user, logout } = useAuth();
   const { onlineUsers, typingUsers } = useSocket();
@@ -200,6 +205,34 @@ export function ChatSidebar({
             <LogOut className="w-4 h-4" />
           </button>
         </div>
+      </div>
+
+      {/* Channel Switcher: Internal Company Chats vs WhatsApp Shared Inbox */}
+      <div className="px-3 pt-2 pb-1.5 bg-neutral-100 dark:bg-chat-darkIn border-b border-neutral-200 dark:border-chat-darkBorder flex gap-1.5 text-xs font-bold">
+        <button
+          type="button"
+          onClick={() => onChannelChange?.("INTERNAL")}
+          className={`flex-1 py-1.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+            channel === "INTERNAL"
+              ? "bg-white dark:bg-neutral-800 text-brand-700 dark:text-emerald-400 shadow-2xs border border-neutral-200/60 dark:border-neutral-700"
+              : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>Internal Chats</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onChannelChange?.("WHATSAPP")}
+          className={`flex-1 py-1.5 px-2 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+            channel === "WHATSAPP"
+              ? "bg-[#25D366] text-white shadow-xs"
+              : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+          }`}
+        >
+          <MessageSquare className="w-3.5 h-3.5 fill-current" />
+          <span>WhatsApp (+92)</span>
+        </button>
       </div>
 
       {/* Quick Action Navigation Bar */}

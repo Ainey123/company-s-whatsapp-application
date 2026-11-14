@@ -27,12 +27,13 @@ import { useAuth } from "@/components/providers/AuthProvider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { StorageDashboard } from "@/components/admin/StorageDashboard";
+import { WhatsAppConnectionManager } from "@/components/admin/WhatsAppConnectionManager";
 
 export default function AdminDashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<"OVERVIEW" | "EMPLOYEES" | "GROUPS" | "DEPARTMENTS" | "AUDIT" | "STORAGE">("OVERVIEW");
+  const [activeTab, setActiveTab] = useState<"OVERVIEW" | "WHATSAPP" | "STORAGE" | "EMPLOYEES" | "GROUPS" | "DEPARTMENTS" | "AUDIT">("OVERVIEW");
   const [stats, setStats] = useState<any>(null);
   const [employees, setEmployees] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
@@ -271,6 +272,7 @@ export default function AdminDashboardPage() {
         <div className="flex gap-2 border-b border-neutral-200 dark:border-chat-darkBorder pb-3 mb-6 overflow-x-auto">
           {[
             { id: "OVERVIEW", label: "Overview & Metrics", icon: Activity },
+            { id: "WHATSAPP", label: "WhatsApp Connection", icon: MessageSquare, badge: "Meta Coex" },
             { id: "STORAGE", label: "Storage & Retention", icon: HardDrive },
             { id: "EMPLOYEES", label: "Employee Directory", icon: Users },
             { id: "GROUPS", label: "Company Groups", icon: Layers },
@@ -290,11 +292,21 @@ export default function AdminDashboardPage() {
                 }`}
               >
                 <Icon className="w-4 h-4" />
-                {tab.label}
+                <span>{tab.label}</span>
+                {(tab as any).badge && (
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    isActive ? "bg-white/25 text-white" : "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300"
+                  }`}>
+                    {(tab as any).badge}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
+
+        {/* TAB: WHATSAPP CONNECTION & COEXISTENCE */}
+        {activeTab === "WHATSAPP" && <WhatsAppConnectionManager />}
 
         {/* TAB 1: OVERVIEW & METRICS */}
         {activeTab === "OVERVIEW" && stats && (

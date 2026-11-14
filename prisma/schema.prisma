@@ -33,6 +33,11 @@ model User {
   auditLogs         AuditLog[]
   storageAuditLogs  StorageAuditLog[]
 
+  waAccountsConnected WhatsAppAccount[]      @relation("WAAccountConnectedBy")
+  waChatsAssigned     WhatsAppChat[]         @relation("WAChatAssignedTo")
+  waMessagesSent      WhatsAppMessage[]      @relation("WAMessageSentBy")
+  waInternalNotes     WhatsAppInternalNote[] @relation("WANoteAuthor")
+
   @@index([department])
   @@index([status])
   @@index([isOnline])
@@ -191,4 +196,128 @@ model AuditLog {
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
+}
+
+model WhatsAppAccount {
+  id                   String    @id @default(cuid())
+  wabaId               String    @unique
+  phoneNumberId        String    @unique
+  displayPhoneNumber   String
+  verifiedName         String?
+  accessTokenEncrypted String
+  coexistenceEnabled   Boolean   @default(true)
+  status               String    @default("CONNECTED") // CONNECTED, SYNCING, DISCONNECTED, INACTIVE_WARNING
+  appVersionConfirmed  String?
+  historySyncStatus    String    @default("PENDING")   // PENDING, IN_PROGRESS, COMPLETED, EXPIRED
+  historySyncProgress  Int       @default(0)           // 0 to 100
+  historyTriggeredAt   DateTime?
+  contactSyncStatus    String    @default("PENDING")   // PENDING, COMPLETED
+  lastWebhookAt        DateTime?
+  lastEchoAt           DateTime?
+  connectedByUserId    String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  connectedBy User?          @relation("WAAccountConnectedBy", fields: [connectedByUserId], references: [id], onDelete: SetNull)
+  chats       WhatsAppChat[]
+
+  @@index([status])
+}
+
+model WhatsAppChat {
+  id                 String    @id @default(cuid())
+  accountId          String
+  customerWaId       String
+  customerPhone      String
+  customerName       String?
+  customerAvatar     String?
+  assignedToUserId   String?
+  status             String    @default("OPEN") // OPEN, PENDING, RESOLVED
+  unreadCount        Int       @default(0)
+  lastCustomerMsgAt  DateTime?
+  lastMessageAt      DateTime  @default(now())
+  lastMessagePreview String?
+  lastMessageSource  String?   // CUSTOMER, CONNECTPRO, PHYSICAL_PHONE, HISTORY_SYNC
+  isPinned           Boolean   @default(false)
+  isArchived         Boolean   @default(false)
+  version            Int       @default(1)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  account    WhatsAppAccount        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  assignedTo User?                  @relation("WAChatAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  messages   WhatsAppMessage[]
+  notes      WhatsAppInternalNote[]
+
+  @@unique([accountId, customerWaId])
+  @@index([accountId, lastMessageAt(sort: Desc)])
+  @@index([assignedToUserId, lastMessageAt(sort: Desc)])
+  @@index([status, lastMessageAt(sort: Desc)])
+}
+
+model WhatsAppMessage {
+  id             String   @id @default(cuid())
+  chatId         String
+  waMessageId    String   @unique
+  direction      String   // INBOUND, OUTBOUND
+  source         String   // CUSTOMER, CONNECTPRO, PHYSICAL_PHONE, HISTORY_SYNC
+  sentByUserId   String?
+  type           String   @default("TEXT") // TEXT, IMAGE, VIDEO, AUDIO, VOICE, DOCUMENT, STICKER, LOCATION, REACTION, SYSTEM
+  content        String   @default("")
+  mediaId        String?
+  fileUrl        String?
+  fileKey        String?
+  fileName       String?
+  fileSize       Int?
+  mimeType       String?
+  thumbnailUrl   String?
+  replyToWaMsgId String?
+  reactionEmoji  String?
+  status         String   @default("SENT") // PENDING, SENT, DELIVERED, READ, FAILED
+  statusRank     Int      @default(1)      // 0=PENDING, 1=SENT, 2=DELIVERED, 3=READ, -1=FAILED
+  errorCode      String?
+  errorMessage   String?
+  isEdited       Boolean  @default(false)
+  isRevoked      Boolean  @default(false)
+  waTimestamp    DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  chat   WhatsAppChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sentBy User?        @relation("WAMessageSentBy", fields: [sentByUserId], references: [id], onDelete: SetNull)
+
+  @@index([chatId, waTimestamp(sort: Asc)])
+  @@index([sentByUserId])
+  @@index([source])
+}
+
+model WhatsAppInternalNote {
+  id        String   @id @default(cuid())
+  chatId    String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chat   WhatsAppChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  author User         @relation("WANoteAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt(sort: Asc)])
+}
+
+model WhatsAppWebhookEvent {
+  id             String   @id @default(cuid())
+  idempotencyKey String   @unique
+  eventType      String   // messages, smb_message_echoes, statuses, history, smb_app_state_sync, account_update
+  wabaId         String?
+  phoneNumberId  String?
+  waMessageId    String?
+  status         String   @default("PROCESSED") // PROCESSING, PROCESSED, FAILED
+  retryCount     Int      @default(0)
+  payloadJson    String
+  errorDetails   String?
+  createdAt      DateTime @default(now())
+
+  @@index([eventType, createdAt(sort: Desc)])
+  @@index([waMessageId])
 }

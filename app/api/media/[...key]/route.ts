@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { isR2Configured } from "@/lib/storage";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ key: string[] }> }
 ) {
   try {
+    const currentUser = await getCurrentUser(req);
+    if (!currentUser || currentUser.status !== "ACTIVE") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { key } = await params;
+    if (Array.isArray(key) && key.some((segment) => segment === ".." || segment.includes("\\"))) {
+      return NextResponse.json({ error: "Invalid file key" }, { status: 400 });
+    }
     const fileKey = Array.isArray(key) ? key.join("/") : key;
 
-    if (!fileKey) {
+    if (!fileKey || fileKey.includes("..")) {
       return NextResponse.json({ error: "File key required" }, { status: 400 });
     }
 
